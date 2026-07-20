@@ -251,6 +251,69 @@
   @media (max-width: 760px) {
     .plaque { flex-basis: 100%; }
   }
+
+  .chat-panel {
+    margin-top: 28px;
+    background: var(--ink-2);
+    border: 1px solid #362c1c;
+    border-radius: 8px;
+    padding: 22px;
+  }
+
+  .chat-panel h2 {
+    font-family: "Noto Serif Thai", Georgia, serif;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    margin: 0;
+    color: var(--paper);
+    border-bottom: 1px solid #362c1c;
+    padding-bottom: 12px;
+  }
+
+  .chat-layout {
+    display: flex;
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .chat-log {
+    flex: 1;
+    height: 96px;
+    overflow-y: auto;
+    background: var(--ink-3);
+    border: 1px solid #4a3c26;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .chat-input-row {
+    flex: 0 0 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .chat-input-row input {
+    flex: 1;
+    min-width: 0;
+    background: var(--ink-3);
+    color: var(--paper);
+    border: 1px solid #4a3c26;
+    border-radius: 6px;
+    padding: 9px 10px;
+    font-family: inherit;
+    font-size: 14px;
+  }
+
+  @media (max-width: 640px) {
+    .chat-layout { flex-direction: column; }
+    .chat-input-row { flex-basis: auto; flex-direction: row; }
+  }
 </style>
 </head>
 <body>
@@ -325,16 +388,17 @@
         <div style="height:12px;"></div>
         <div id="status"></div>
       </div>
+    </div>
+  </div>
 
-      <div>
-        <h2>แชท</h2>
-        <div style="height:14px;"></div>
-        <div id="chatLog" style="height:140px; overflow-y:auto; background:var(--ink-3); border:1px solid #4a3c26; border-radius:6px; padding:10px; font-size:13px; display:flex; flex-direction:column; gap:6px;"></div>
-        <div style="height:10px;"></div>
-        <div style="display:flex; gap:8px;">
-          <input id="chatInput" type="text" placeholder="พิมพ์ข้อความ…" disabled style="flex:1; min-width:0; background:var(--ink-3); color:var(--paper); border:1px solid #4a3c26; border-radius:6px; padding:8px 10px; font-family:inherit; font-size:14px;">
-          <button id="chatSendBtn" type="button" disabled>ส่ง</button>
-        </div>
+  <div class="chat-panel">
+    <h2>แชท</h2>
+    <div style="height:14px;"></div>
+    <div class="chat-layout">
+      <div id="chatLog" class="chat-log"></div>
+      <div class="chat-input-row">
+        <input id="chatInput" type="text" placeholder="พิมพ์ข้อความ…" disabled>
+        <button id="chatSendBtn" type="button" disabled>ส่ง</button>
       </div>
     </div>
   </div>
