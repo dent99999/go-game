@@ -319,11 +319,22 @@
           </div>
           <div class="score-row">
             <span class="label">โคมิ (ชดเชยฝ่ายขาว)</span>
-            <span class="value">+7.5</span>
+            <span class="value" id="komiValue">+7.5</span>
           </div>
         </div>
         <div style="height:12px;"></div>
         <div id="status"></div>
+      </div>
+
+      <div>
+        <h2>แชท</h2>
+        <div style="height:14px;"></div>
+        <div id="chatLog" style="height:140px; overflow-y:auto; background:var(--ink-3); border:1px solid #4a3c26; border-radius:6px; padding:10px; font-size:13px; display:flex; flex-direction:column; gap:6px;"></div>
+        <div style="height:10px;"></div>
+        <div style="display:flex; gap:8px;">
+          <input id="chatInput" type="text" placeholder="พิมพ์ข้อความ…" disabled style="flex:1; min-width:0; background:var(--ink-3); color:var(--paper); border:1px solid #4a3c26; border-radius:6px; padding:8px 10px; font-family:inherit; font-size:14px;">
+          <button id="chatSendBtn" type="button" disabled>ส่ง</button>
+        </div>
       </div>
     </div>
   </div>
@@ -353,11 +364,15 @@
   const roomCodeBox = document.getElementById('roomCodeBox');
   const roomCodeValueEl = document.getElementById('roomCodeValue');
   const copyRoomBtn = document.getElementById('copyRoomBtn');
+  const komiValueEl = document.getElementById('komiValue');
+  const chatLog = document.getElementById('chatLog');
+  const chatInput = document.getElementById('chatInput');
+  const chatSendBtn = document.getElementById('chatSendBtn');
 
   const EMPTY = 0, BLACK = 1, WHITE = 2;
   const LINE_COLOR = '#4a3218';
   const WOOD_TOP = '#c89a5c';
-  const KOMI = 7.5;
+  const KOMI_BY_SIZE = { 9: 3.5, 13: 5.5, 19: 7.5 };
 
   let N = 9;
   let cell = 0;
@@ -532,7 +547,7 @@
   function endGame() {
     gameOver = true;
     const score = scoreArea(board);
-    const whiteScore = score[2] + KOMI;
+    const whiteScore = score[2] + (KOMI_BY_SIZE[N] || 7.5);
     let msg;
     if (score[1] > whiteScore) msg = `จบเกม! ดำชนะ ${score[1]} - ${whiteScore}`;
     else if (whiteScore > score[1]) msg = `จบเกม! ขาวชนะ ${whiteScore} - ${score[1]}`;
@@ -627,6 +642,7 @@
     turnDot.style.boxShadow = turn === BLACK ? '0 0 0 3px rgba(5,5,5,0.25)' : '0 0 0 3px rgba(255,255,255,0.25)';
     blackCapturesEl.textContent = captures[1];
     whiteCapturesEl.textContent = captures[2];
+    komiValueEl.textContent = '+' + (KOMI_BY_SIZE[N] || 7.5);
   }
 
   canvas.addEventListener('click', (e) => {
@@ -691,14 +707,38 @@
     return 'go-' + s;
   }
 
+  function appendChatMessage(sender, text) {
+    const row = document.createElement('div');
+    const strong = document.createElement('strong');
+    strong.textContent = (sender === BLACK ? 'ดำ' : 'ขาว') + ': ';
+    row.appendChild(strong);
+    row.appendChild(document.createTextNode(text));
+    chatLog.appendChild(row);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  function sendChat() {
+    const text = chatInput.value.trim();
+    if (!text || !conn || !onlineConnected) return;
+    appendChatMessage(myColor, text);
+    conn.send({ type: 'chat', sender: myColor, text });
+    chatInput.value = '';
+  }
+
   function setupConnectionHandlers() {
     conn.on('open', () => {
       onlineConnected = true;
       updateOnlineStatus(isHost ? 'เชื่อมต่อสำเร็จ — คุณคือฝ่ายดำ' : 'เชื่อมต่อสำเร็จ — คุณคือฝ่ายขาว');
       toggleOnlineControls();
+      chatInput.disabled = false;
+      chatSendBtn.disabled = false;
       if (isHost) broadcastStateIfHost();
     });
     conn.on('data', (data) => {
+      if (data.type === 'chat') {
+        appendChatMessage(data.sender, data.text);
+        return;
+      }
       if (isHost) {
         if (data.type === 'requestMove' && !gameOver && turn === WHITE) {
           placeStone(data.x, data.y);
@@ -712,6 +752,8 @@
     conn.on('close', () => {
       onlineConnected = false;
       updateOnlineStatus('การเชื่อมต่อถูกตัด');
+      chatInput.disabled = true;
+      chatSendBtn.disabled = true;
     });
   }
 
@@ -753,24 +795,14 @@
     });
   }
 
-  function teardownOnline() {
-    if (conn) { try { conn.close(); } catch (e) {} }
-    if (peer) { try { peer.destroy(); } catch (e) {} }
-    conn = null;
-    peer = null;
-    isHost = false;
-    myColor = null;
-    onlineConnected = false;
-    roomCodeBox.style.display = 'none';
-    joinCodeInput.value = '';
-    updateOnlineStatus('เลือกสร้างห้อง หรือเข้าร่วมด้วยรหัส');
-    toggleOnlineControls();
-  }
-
   createRoomBtn.addEventListener('click', createRoom);
   joinRoomBtn.addEventListener('click', joinRoom);
   copyRoomBtn.addEventListener('click', () => {
     navigator.clipboard?.writeText(roomCodeValueEl.textContent || '');
+  });
+  chatSendBtn.addEventListener('click', sendChat);
+  chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendChat();
   });
 
   passBtn.addEventListener('click', () => {
