@@ -256,9 +256,9 @@
 <body>
 
 <div class="shell">
-  <p class="eyebrow">เกมกระดานดั้งเดิม · Two-player strategy</p>
+  <p class="eyebrow">เกมกระดานดั้งเดิม · Online two-player</p>
   <h1>หมากล้อม</h1>
-  <p class="lede">ล้อมพื้นที่ จับกินหมากฝ่ายตรงข้าม คลิกที่จุดตัดบนกระดานเพื่อวางหมาก — ใครครองพื้นที่มากกว่าเมื่อจบเกมเป็นผู้ชนะ</p>
+  <p class="lede">ล้อมพื้นที่ จับกินหมากฝ่ายตรงข้าม เล่นออนไลน์กับเพื่อนได้จากคนละเครื่อง — สร้างห้องหรือใส่รหัสห้องเพื่อเริ่มเกม</p>
 
   <div class="layout">
     <div class="goban-wrap">
@@ -280,15 +280,7 @@
           </select>
         </div>
         <div style="height:12px;"></div>
-        <div class="field">
-          <label for="opponent">คู่ต่อสู้</label>
-          <select id="opponent">
-            <option value="human">คน vs คน (เครื่องเดียว)</option>
-            <option value="ai">คน vs คอมพิวเตอร์</option>
-            <option value="online">เล่นออนไลน์ (2 เครื่อง)</option>
-          </select>
-        </div>
-        <div id="onlinePanel" class="field" style="display:none; gap:10px; margin-top:4px;">
+        <div id="onlinePanel" class="field" style="display:flex; gap:10px; margin-top:4px;">
           <div id="onlineStatus" style="font-size:13px; color:var(--paper-dim);">เลือกสร้างห้อง หรือเข้าร่วมด้วยรหัส</div>
           <button id="createRoomBtn" type="button">สร้างห้อง</button>
           <div id="roomCodeBox" style="display:none; align-items:center; gap:8px;">
@@ -341,7 +333,6 @@
   const canvas = document.getElementById('board');
   const ctx = canvas.getContext('2d');
   const boardSizeSelect = document.getElementById('boardSize');
-  const opponentSelect = document.getElementById('opponent');
   const newGameBtn = document.getElementById('newGameBtn');
   const passBtn = document.getElementById('passBtn');
   const undoBtn = document.getElementById('undoBtn');
@@ -442,18 +433,6 @@
     return { ok: true, board: nb, captured: capturedCount };
   }
 
-  function legalMoves(b, color, koKey) {
-    const moves = [];
-    for (let y = 0; y < N; y++) {
-      for (let x = 0; x < N; x++) {
-        if (b[idx(x, y)] !== EMPTY) continue;
-        const res = tryMove(b, x, y, color);
-        if (res.ok && boardKey(res.board) !== koKey) moves.push([x, y]);
-      }
-    }
-    return moves;
-  }
-
   function saveHistory() {
     history.push({ board: board.slice(), turn, captures: { ...captures }, passCount });
   }
@@ -475,7 +454,6 @@
     turn = turn === BLACK ? WHITE : BLACK;
     statusEl.textContent = '';
     draw();
-    maybeAiMove();
     broadcastStateIfHost();
     return true;
   }
@@ -489,23 +467,17 @@
       endGame();
     } else {
       draw();
-      maybeAiMove();
     }
     broadcastStateIfHost();
   }
 
   function undo() {
     if (history.length === 0) return;
-    const steps = (opponentSelect.value === 'ai' && history.length >= 2) ? 2 : 1;
-    for (let i = 0; i < steps; i++) {
-      const prev = history.pop();
-      if (prev) {
-        board = prev.board;
-        turn = prev.turn;
-        captures = prev.captures;
-        passCount = prev.passCount;
-      }
-    }
+    const prev = history.pop();
+    board = prev.board;
+    turn = prev.turn;
+    captures = prev.captures;
+    passCount = prev.passCount;
     gameOver = false;
     koBoardString = null;
     statusEl.textContent = '';
@@ -561,97 +533,6 @@
     else msg = `จบเกม! เสมอ ${score[1]} - ${score[2]}`;
     statusEl.textContent = msg;
     draw();
-  }
-
-  function isLikelyEye(b, x, y, color) {
-    for (const [nx, ny] of neighbors(x, y)) {
-      if (b[idx(nx, ny)] !== color) return false;
-    }
-    const diagonals = [[x - 1, y - 1], [x + 1, y - 1], [x - 1, y + 1], [x + 1, y + 1]];
-    let onBoardDiag = 0, colorDiag = 0;
-    diagonals.forEach(([dx, dy]) => {
-      if (inBounds(dx, dy)) {
-        onBoardDiag++;
-        if (b[idx(dx, dy)] === color) colorDiag++;
-      }
-    });
-    if (onBoardDiag < 4) return colorDiag === onBoardDiag;
-    return colorDiag >= 3;
-  }
-
-  function scoreAiMove(x, y, stoneCoords, totalStones, starPoints) {
-    const res = tryMove(board, x, y, WHITE);
-    let score = res.captured * 120;
-
-    const ownGroup = getGroup(res.board, x, y);
-    if (ownGroup.liberties.size === 1) score -= 60;
-    else if (ownGroup.liberties.size === 2) score -= 10;
-
-    for (const [nx, ny] of neighbors(x, y)) {
-      if (board[idx(nx, ny)] === WHITE) {
-        const g = getGroup(board, nx, ny);
-        if (g.liberties.size === 1) score += 70;
-      }
-    }
-
-    const seen = new Set();
-    for (const [nx, ny] of neighbors(x, y)) {
-      if (res.board[idx(nx, ny)] === BLACK) {
-        const key = idx(nx, ny);
-        if (seen.has(key)) continue;
-        const g = getGroup(res.board, nx, ny);
-        g.stones.forEach(([gx, gy]) => seen.add(idx(gx, gy)));
-        if (g.liberties.size === 1) score += 45 + g.stones.length * 8;
-        else if (g.liberties.size === 2) score += 10;
-      }
-    }
-
-    let minDist = totalStones === 0 ? 0 : Infinity;
-    for (const [sx, sy] of stoneCoords) {
-      const d = Math.max(Math.abs(sx - x), Math.abs(sy - y));
-      if (d < minDist) minDist = d;
-    }
-    score += Math.max(0, 6 - minDist) * 3;
-
-    if (totalStones < N) {
-      if (starPoints.some(([px, py]) => px === x && py === y)) score += 15;
-      const distFromEdge = Math.min(x, y, N - 1 - x, N - 1 - y);
-      if (distFromEdge === 0) score -= 15;
-      else if (distFromEdge === 1) score -= 5;
-    }
-
-    score += Math.random() * 3;
-    return score;
-  }
-
-  function maybeAiMove() {
-    if (gameOver) return;
-    if (opponentSelect.value !== 'ai' || turn !== WHITE) return;
-    setTimeout(() => {
-      if (gameOver) return;
-      const allMoves = legalMoves(board, WHITE, koBoardString);
-      if (allMoves.length === 0) { passTurn(); return; }
-
-      let candidates = allMoves.filter(([x, y]) => !isLikelyEye(board, x, y, WHITE));
-      if (candidates.length === 0) candidates = allMoves;
-
-      const stoneCoords = [];
-      for (let y = 0; y < N; y++) {
-        for (let x = 0; x < N; x++) {
-          if (board[idx(x, y)] !== EMPTY) stoneCoords.push([x, y]);
-        }
-      }
-      const totalStones = stoneCoords.length;
-      const starPoints = getStarPoints(N);
-
-      let best = null;
-      let bestScore = -Infinity;
-      for (const [x, y] of candidates) {
-        const s = scoreAiMove(x, y, stoneCoords, totalStones, starPoints);
-        if (s > bestScore) { bestScore = s; best = [x, y]; }
-      }
-      placeStone(best[0], best[1]);
-    }, 400);
   }
 
   function setupBoard() {
@@ -753,19 +634,12 @@
     const [bx, by] = boardToPixel(x, y);
     if (Math.hypot(px - bx, py - by) > cell * 0.5) return;
 
-    if (opponentSelect.value === 'online') {
-      if (gameOver || !onlineConnected || turn !== myColor) return;
-      if (isHost) {
-        placeStone(x, y);
-      } else if (conn) {
-        conn.send({ type: 'requestMove', x, y });
-      }
-      return;
+    if (gameOver || !onlineConnected || turn !== myColor) return;
+    if (isHost) {
+      placeStone(x, y);
+    } else if (conn) {
+      conn.send({ type: 'requestMove', x, y });
     }
-
-    if (gameOver) return;
-    if (opponentSelect.value === 'ai' && turn === WHITE) return;
-    placeStone(x, y);
   });
 
   // ---- Online multiplayer (WebRTC via PeerJS's free public broker) ----
@@ -798,7 +672,7 @@
   }
 
   function toggleOnlineControls() {
-    const guestLocked = opponentSelect.value === 'online' && !isHost;
+    const guestLocked = myColor === WHITE;
     boardSizeSelect.disabled = guestLocked;
     newGameBtn.disabled = guestLocked;
     undoBtn.disabled = guestLocked;
@@ -894,7 +768,7 @@
   });
 
   passBtn.addEventListener('click', () => {
-    if (opponentSelect.value === 'online' && onlineConnected && !isHost) {
+    if (onlineConnected && !isHost) {
       if (turn === myColor) conn.send({ type: 'requestPass' });
       return;
     }
@@ -904,12 +778,6 @@
   newGameBtn.addEventListener('click', setupBoard);
   boardSizeSelect.addEventListener('change', setupBoard);
   undoBtn.addEventListener('click', undo);
-
-  opponentSelect.addEventListener('change', () => {
-    teardownOnline();
-    onlinePanel.style.display = opponentSelect.value === 'online' ? 'flex' : 'none';
-    setupBoard();
-  });
 
   setupBoard();
 })();
