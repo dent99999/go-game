@@ -317,6 +317,10 @@
             <span class="label"><span class="stone-dot white"></span>ขาว จับได้</span>
             <span class="value" id="whiteCaptures">0</span>
           </div>
+          <div class="score-row">
+            <span class="label">โคมิ (ชดเชยฝ่ายขาว)</span>
+            <span class="value">+7.5</span>
+          </div>
         </div>
         <div style="height:12px;"></div>
         <div id="status"></div>
@@ -353,6 +357,7 @@
   const EMPTY = 0, BLACK = 1, WHITE = 2;
   const LINE_COLOR = '#4a3218';
   const WOOD_TOP = '#c89a5c';
+  const KOMI = 7.5;
 
   let N = 9;
   let cell = 0;
@@ -527,10 +532,11 @@
   function endGame() {
     gameOver = true;
     const score = scoreArea(board);
+    const whiteScore = score[2] + KOMI;
     let msg;
-    if (score[1] > score[2]) msg = `จบเกม! ดำชนะ ${score[1]} - ${score[2]}`;
-    else if (score[2] > score[1]) msg = `จบเกม! ขาวชนะ ${score[2]} - ${score[1]}`;
-    else msg = `จบเกม! เสมอ ${score[1]} - ${score[2]}`;
+    if (score[1] > whiteScore) msg = `จบเกม! ดำชนะ ${score[1]} - ${whiteScore}`;
+    else if (whiteScore > score[1]) msg = `จบเกม! ขาวชนะ ${whiteScore} - ${score[1]}`;
+    else msg = `จบเกม! เสมอ ${score[1]} - ${whiteScore}`;
     statusEl.textContent = msg;
     draw();
   }
