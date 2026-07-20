@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>หมากล้อม — เล่นออนไลน์</title>
+<style>
+  :root {
+    --ink: #16130f;
+    --ink-2: #221d17;
+    --ink-3: #2b2419;
+    --paper: #ece4d3;
+    --paper-dim: #a89a82;
+    --wood: #c89a5c;
+    --wood-hi: #dcb877;
+    --wood-dark: #8a6236;
+    --wood-line: #4a3218;
+    --seal: #b04432;
+    --seal-hi: #cf5940;
+    --focus: #e0a94f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -10%, #2a2013 0%, transparent 60%),
+      var(--ink);
+    color: var(--paper);
+    font-family: "Noto Sans Thai", -apple-system, "Segoe UI", system-ui, sans-serif;
+    line-height: 1.6;
+    padding: 40px 20px 60px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  .shell {
+    max-width: 1120px;
+    margin: 0 auto;
+  }
+
+  .eyebrow {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--paper-dim);
+    margin: 0 0 10px;
+  }
+
+  h1 {
+    font-family: "Noto Serif Thai", Georgia, "Times New Roman", serif;
+    font-weight: 600;
+    font-size: clamp(32px, 5vw, 48px);
+    margin: 0 0 8px;
+    text-wrap: balance;
+    color: var(--paper);
+  }
+
+  .lede {
+    max-width: 62ch;
+    color: var(--paper-dim);
+    font-size: 16px;
+    margin: 0 0 28px;
+  }
+
+  .layout {
+    display: flex;
+    gap: 28px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  /* ---- Goban (board block) ---- */
+  .goban-wrap {
+    position: relative;
+    flex: 1 1 640px;
+    min-width: 320px;
+  }
+
+  .goban {
+    position: relative;
+    background:
+      linear-gradient(155deg, var(--wood-hi) 0%, var(--wood) 45%, var(--wood-dark) 100%);
+    border-radius: 6px;
+    padding: 22px;
+    box-shadow:
+      0 2px 0 rgba(255,255,255,0.15) inset,
+      0 10px 0 var(--wood-dark),
+      0 14px 0 #5e401f,
+      0 26px 40px rgba(0,0,0,0.55);
+  }
+
+  canvas#board {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+  /* ---- Scorecard / control plaque ---- */
+  .plaque {
+    flex: 0 0 300px;
+    background: var(--ink-2);
+    border: 1px solid #362c1c;
+    border-radius: 8px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .plaque h2 {
+    font-family: "Noto Serif Thai", Georgia, serif;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    margin: 0;
+    color: var(--paper);
+    border-bottom: 1px solid #362c1c;
+    padding-bottom: 12px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field label {
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--paper-dim);
+  }
+
+  select {
+    background: var(--ink-3);
+    color: var(--paper);
+    border: 1px solid #4a3c26;
+    border-radius: 6px;
+    padding: 9px 10px;
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  select:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--paper);
+    background: var(--ink-3);
+    border: 1px solid #4a3c26;
+    border-radius: 6px;
+    padding: 9px 14px;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  button:hover { background: #362c1c; border-color: #5c4a2e; }
+  button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  button.primary {
+    background: var(--seal);
+    border-color: var(--seal);
+  }
+  button.primary:hover { background: var(--seal-hi); }
+
+  .score-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .score-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14.5px;
+  }
+
+  .score-row .label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--paper-dim);
+  }
+
+  .score-row .value {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 16px;
+    color: var(--paper);
+  }
+
+  .stone-dot {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    flex: none;
+  }
+  .stone-dot.black { background: radial-gradient(circle at 32% 28%, #6a6a6a, #050505 70%); box-shadow: 0 0 0 1px #555 inset; }
+  .stone-dot.white { background: radial-gradient(circle at 32% 28%, #ffffff, #cfcfcf 75%); }
+
+  .turn-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--ink-3);
+    border: 1px solid #4a3c26;
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .turn-row .label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--paper-dim); }
+  .turn-row .value { display: flex; align-items: center; gap: 8px; font-family: "Noto Serif Thai", Georgia, serif; font-size: 17px; }
+  .turn-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--seal);
+    box-shadow: 0 0 0 3px rgba(176,68,50,0.25);
+  }
+
+  #status {
+    min-height: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--seal-hi);
+  }
+
+  footer.credit {
+    max-width: 1120px;
+    margin: 32px auto 0;
+    color: var(--paper-dim);
+    font-size: 12.5px;
+  }
+
+  @media (max-width: 760px) {
+    .plaque { flex-basis: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <p class="eyebrow">เกมกระดานดั้งเดิม · Two-player strategy</p>
+  <h1>หมากล้อม</h1>
+  <p class="lede">ล้อมพื้นที่ จับกินหมากฝ่ายตรงข้าม คลิกที่จุดตัดบนกระดานเพื่อวางหมาก — ใครครองพื้นที่มากกว่าเมื่อจบเกมเป็นผู้ชนะ</p>
+
+  <div class="layout">
+    <div class="goban-wrap">
+      <div class="goban">
+        <canvas id="board" width="640" height="640" aria-label="กระดานหมากล้อม"></canvas>
+      </div>
+    </div>
+
+    <div class="plaque">
+      <div>
+        <h2>ตั้งค่าเกม</h2>
+        <div style="height:14px;"></div>
+        <div class="field">
+          <label for="boardSize">ขนาดกระดาน</label>
+          <select id="boardSize">
+            <option value="9">9 × 9 (เร็ว)</option>
+            <option value="13">13 × 13</option>
+            <option value="19">19 × 19 (มาตรฐาน)</option>
+          </select>
+        </div>
+        <div style="height:12px;"></div>
+        <div class="field">
+          <label for="opponent">คู่ต่อสู้</label>
+          <select id="opponent">
+            <option value="human">คน vs คน</option>
+            <option value="ai">คน vs คอมพิวเตอร์</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button id="newGameBtn" class="primary">เริ่มเกมใหม่</button>
+        <button id="passBtn">ยกเว้นตา</button>
+        <button id="undoBtn">ย้อนกลับ</button>
+      </div>
+
+      <div>
+        <h2>สถานะ</h2>
+        <div style="height:14px;"></div>
+        <div class="turn-row">
+          <span class="label">ตาปัจจุบัน</span>
+          <span class="value"><span class="turn-dot" id="turnDot"></span><span id="turnText">ดำ</span></span>
+        </div>
+        <div style="height:14px;"></div>
+        <div class="score-list">
+          <div class="score-row">
+            <span class="label"><span class="stone-dot black"></span>ดำ จับได้</span>
+            <span class="value" id="blackCaptures">0</span>
+          </div>
+          <div class="score-row">
+            <span class="label"><span class="stone-dot white"></span>ขาว จับได้</span>
+            <span class="value" id="whiteCaptures">0</span>
+          </div>
+        </div>
+        <div style="height:12px;"></div>
+        <div id="status"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="credit">หมากล้อม (Go) — จับกินหมาก, กฎโค และนับพื้นที่ครบตามกติกา</footer>
+
+<script>
+(function () {
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const boardSizeSelect = document.getElementById('boardSize');
+  const opponentSelect = document.getElementById('opponent');
+  const newGameBtn = document.getElementById('newGameBtn');
+  const passBtn = document.getElementById('passBtn');
+  const undoBtn = document.getElementById('undoBtn');
+  const turnText = document.getElementById('turnText');
+  const turnDot = document.getElementById('turnDot');
+  const blackCapturesEl = document.getElementById('blackCaptures');
+  const whiteCapturesEl = document.getElementById('whiteCaptures');
+  const statusEl = document.getElementById('status');
+
+  const EMPTY = 0, BLACK = 1, WHITE = 2;
+  const LINE_COLOR = '#4a3218';
+  const WOOD_TOP = '#c89a5c';
+
+  let N = 9;
+  let cell = 0;
+  let margin = 0;
+  let board = [];
+  let turn = BLACK;
+  let captures = { 1: 0, 2: 0 };
+  let passCount = 0;
+  let gameOver = false;
+  let history = [];
+  let koBoardString = null;
+
+  function idx(x, y) { return y * N + x; }
+  function newBoard(n) { return new Array(n * n).fill(EMPTY); }
+  function boardKey(b) { return b.join(''); }
+  function inBounds(x, y) { return x >= 0 && x < N && y >= 0 && y < N; }
+
+  function neighbors(x, y) {
+    const result = [];
+    if (x > 0) result.push([x - 1, y]);
+    if (x < N - 1) result.push([x + 1, y]);
+    if (y > 0) result.push([x, y - 1]);
+    if (y < N - 1) result.push([x, y + 1]);
+    return result;
+  }
+
+  function getGroup(b, x, y) {
+    const color = b[idx(x, y)];
+    const stack = [[x, y]];
+    const seen = new Set([idx(x, y)]);
+    const stones = [];
+    const liberties = new Set();
+    while (stack.length) {
+      const [cx, cy] = stack.pop();
+      stones.push([cx, cy]);
+      for (const [nx, ny] of neighbors(cx, cy)) {
+        const nColor = b[idx(nx, ny)];
+        if (nColor === EMPTY) {
+          liberties.add(idx(nx, ny));
+        } else if (nColor === color && !seen.has(idx(nx, ny))) {
+          seen.add(idx(nx, ny));
+          stack.push([nx, ny]);
+        }
+      }
+    }
+    return { stones, liberties, color };
+  }
+
+  function tryMove(b, x, y, color) {
+    if (b[idx(x, y)] !== EMPTY) return { ok: false };
+    const nb = b.slice();
+    nb[idx(x, y)] = color;
+    const opponent = color === BLACK ? WHITE : BLACK;
+    let capturedCount = 0;
+    const visitedGroups = new Set();
+
+    for (const [nx, ny] of neighbors(x, y)) {
+      const key = idx(nx, ny);
+      if (nb[key] === opponent && !visitedGroups.has(key)) {
+        const group = getGroup(nb, nx, ny);
+        group.stones.forEach(([gx, gy]) => visitedGroups.add(idx(gx, gy)));
+        if (group.liberties.size === 0) {
+          group.stones.forEach(([gx, gy]) => { nb[idx(gx, gy)] = EMPTY; });
+          capturedCount += group.stones.length;
+        }
+      }
+    }
+
+    const ownGroup = getGroup(nb, x, y);
+    if (ownGroup.liberties.size === 0) return { ok: false };
+
+    return { ok: true, board: nb, captured: capturedCount };
+  }
+
+  function legalMoves(b, color, koKey) {
+    const moves = [];
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        if (b[idx(x, y)] !== EMPTY) continue;
+        const res = tryMove(b, x, y, color);
+        if (res.ok && boardKey(res.board) !== koKey) moves.push([x, y]);
+      }
+    }
+    return moves;
+  }
+
+  function saveHistory() {
+    history.push({ board: board.slice(), turn, captures: { ...captures }, passCount });
+  }
+
+  function placeStone(x, y) {
+    if (gameOver) return false;
+    const res = tryMove(board, x, y, turn);
+    if (!res.ok) return false;
+    if (koBoardString !== null && boardKey(res.board) === koBoardString) {
+      statusEl.textContent = 'ผิดกฎโค (Ko) ห้ามเดินซ้ำตำแหน่งเดิม';
+      return false;
+    }
+
+    saveHistory();
+    koBoardString = boardKey(board);
+    board = res.board;
+    captures[turn] += res.captured;
+    passCount = 0;
+    turn = turn === BLACK ? WHITE : BLACK;
+    statusEl.textContent = '';
+    draw();
+    maybeAiMove();
+    return true;
+  }
+
+  function passTurn() {
+    if (gameOver) return;
+    saveHistory();
+    passCount++;
+    turn = turn === BLACK ? WHITE : BLACK;
+    if (passCount >= 2) {
+      endGame();
+    } else {
+      draw();
+      maybeAiMove();
+    }
+  }
+
+  function undo() {
+    if (history.length === 0) return;
+    const steps = (opponentSelect.value === 'ai' && history.length >= 2) ? 2 : 1;
+    for (let i = 0; i < steps; i++) {
+      const prev = history.pop();
+      if (prev) {
+        board = prev.board;
+        turn = prev.turn;
+        captures = prev.captures;
+        passCount = prev.passCount;
+      }
+    }
+    gameOver = false;
+    koBoardString = null;
+    statusEl.textContent = '';
+    draw();
+  }
+
+  function scoreArea(b) {
+    const visited = new Array(b.length).fill(false);
+    const score = { 1: 0, 2: 0 };
+    for (let i = 0; i < b.length; i++) {
+      if (b[i] === BLACK) score[1]++;
+      else if (b[i] === WHITE) score[2]++;
+    }
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const i = idx(x, y);
+        if (b[i] !== EMPTY || visited[i]) continue;
+        const stack = [[x, y]];
+        visited[i] = true;
+        const region = [[x, y]];
+        const borders = new Set();
+        while (stack.length) {
+          const [cx, cy] = stack.pop();
+          for (const [nx, ny] of neighbors(cx, cy)) {
+            const ni = idx(nx, ny);
+            if (b[ni] === EMPTY) {
+              if (!visited[ni]) {
+                visited[ni] = true;
+                stack.push([nx, ny]);
+                region.push([nx, ny]);
+              }
+            } else {
+              borders.add(b[ni]);
+            }
+          }
+        }
+        if (borders.size === 1) {
+          const owner = [...borders][0];
+          score[owner] += region.length;
+        }
+      }
+    }
+    return score;
+  }
+
+  function endGame() {
+    gameOver = true;
+    const score = scoreArea(board);
+    let msg;
+    if (score[1] > score[2]) msg = `จบเกม! ดำชนะ ${score[1]} - ${score[2]}`;
+    else if (score[2] > score[1]) msg = `จบเกม! ขาวชนะ ${score[2]} - ${score[1]}`;
+    else msg = `จบเกม! เสมอ ${score[1]} - ${score[2]}`;
+    statusEl.textContent = msg;
+    draw();
+  }
+
+  function isLikelyEye(b, x, y, color) {
+    for (const [nx, ny] of neighbors(x, y)) {
+      if (b[idx(nx, ny)] !== color) return false;
+    }
+    const diagonals = [[x - 1, y - 1], [x + 1, y - 1], [x - 1, y + 1], [x + 1, y + 1]];
+    let onBoardDiag = 0, colorDiag = 0;
+    diagonals.forEach(([dx, dy]) => {
+      if (inBounds(dx, dy)) {
+        onBoardDiag++;
+        if (b[idx(dx, dy)] === color) colorDiag++;
+      }
+    });
+    if (onBoardDiag < 4) return colorDiag === onBoardDiag;
+    return colorDiag >= 3;
+  }
+
+  function scoreAiMove(x, y, stoneCoords, totalStones, starPoints) {
+    const res = tryMove(board, x, y, WHITE);
+    let score = res.captured * 120;
+
+    const ownGroup = getGroup(res.board, x, y);
+    if (ownGroup.liberties.size === 1) score -= 60;
+    else if (ownGroup.liberties.size === 2) score -= 10;
+
+    for (const [nx, ny] of neighbors(x, y)) {
+      if (board[idx(nx, ny)] === WHITE) {
+        const g = getGroup(board, nx, ny);
+        if (g.liberties.size === 1) score += 70;
+      }
+    }
+
+    const seen = new Set();
+    for (const [nx, ny] of neighbors(x, y)) {
+      if (res.board[idx(nx, ny)] === BLACK) {
+        const key = idx(nx, ny);
+        if (seen.has(key)) continue;
+        const g = getGroup(res.board, nx, ny);
+        g.stones.forEach(([gx, gy]) => seen.add(idx(gx, gy)));
+        if (g.liberties.size === 1) score += 45 + g.stones.length * 8;
+        else if (g.liberties.size === 2) score += 10;
+      }
+    }
+
+    let minDist = totalStones === 0 ? 0 : Infinity;
+    for (const [sx, sy] of stoneCoords) {
+      const d = Math.max(Math.abs(sx - x), Math.abs(sy - y));
+      if (d < minDist) minDist = d;
+    }
+    score += Math.max(0, 6 - minDist) * 3;
+
+    if (totalStones < N) {
+      if (starPoints.some(([px, py]) => px === x && py === y)) score += 15;
+      const distFromEdge = Math.min(x, y, N - 1 - x, N - 1 - y);
+      if (distFromEdge === 0) score -= 15;
+      else if (distFromEdge === 1) score -= 5;
+    }
+
+    score += Math.random() * 3;
+    return score;
+  }
+
+  function maybeAiMove() {
+    if (gameOver) return;
+    if (opponentSelect.value !== 'ai' || turn !== WHITE) return;
+    setTimeout(() => {
+      if (gameOver) return;
+      const allMoves = legalMoves(board, WHITE, koBoardString);
+      if (allMoves.length === 0) { passTurn(); return; }
+
+      let candidates = allMoves.filter(([x, y]) => !isLikelyEye(board, x, y, WHITE));
+      if (candidates.length === 0) candidates = allMoves;
+
+      const stoneCoords = [];
+      for (let y = 0; y < N; y++) {
+        for (let x = 0; x < N; x++) {
+          if (board[idx(x, y)] !== EMPTY) stoneCoords.push([x, y]);
+        }
+      }
+      const totalStones = stoneCoords.length;
+      const starPoints = getStarPoints(N);
+
+      let best = null;
+      let bestScore = -Infinity;
+      for (const [x, y] of candidates) {
+        const s = scoreAiMove(x, y, stoneCoords, totalStones, starPoints);
+        if (s > bestScore) { bestScore = s; best = [x, y]; }
+      }
+      placeStone(best[0], best[1]);
+    }, 400);
+  }
+
+  function setupBoard() {
+    N = parseInt(boardSizeSelect.value, 10);
+    board = newBoard(N);
+    turn = BLACK;
+    captures = { 1: 0, 2: 0 };
+    passCount = 0;
+    gameOver = false;
+    history = [];
+    koBoardString = null;
+    statusEl.textContent = '';
+    resizeCanvas();
+    draw();
+  }
+
+  function resizeCanvas() {
+    const size = 640;
+    canvas.width = size;
+    canvas.height = size;
+    margin = size / (N + 1);
+    cell = (size - margin * 2) / (N - 1);
+  }
+
+  function boardToPixel(x, y) { return [margin + x * cell, margin + y * cell]; }
+
+  function pixelToBoard(px, py) {
+    return [Math.round((px - margin) / cell), Math.round((py - margin) / cell)];
+  }
+
+  function getStarPoints(n) {
+    if (n === 9) return [[2,2],[6,2],[4,4],[2,6],[6,6]];
+    if (n === 13) return [[3,3],[9,3],[6,6],[3,9],[9,9]];
+    if (n === 19) return [[3,3],[9,3],[15,3],[3,9],[9,9],[15,9],[3,15],[9,15],[15,15]];
+    return [];
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = WOOD_TOP;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = LINE_COLOR;
+    ctx.lineWidth = 1.3;
+    for (let i = 0; i < N; i++) {
+      const [x0, y0] = boardToPixel(i, 0);
+      const [x1, y1] = boardToPixel(i, N - 1);
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+
+      const [xa, ya] = boardToPixel(0, i);
+      const [xb, yb] = boardToPixel(N - 1, i);
+      ctx.beginPath(); ctx.moveTo(xa, ya); ctx.lineTo(xb, yb); ctx.stroke();
+    }
+
+    ctx.fillStyle = LINE_COLOR;
+    getStarPoints(N).forEach(([sx, sy]) => {
+      const [px, py] = boardToPixel(sx, sy);
+      ctx.beginPath(); ctx.arc(px, py, 3.2, 0, Math.PI * 2); ctx.fill();
+    });
+
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const v = board[idx(x, y)];
+        if (v === EMPTY) continue;
+        const [px, py] = boardToPixel(x, y);
+        const r = cell * 0.46;
+        const grad = ctx.createRadialGradient(px - r * 0.3, py - r * 0.3, r * 0.1, px, py, r);
+        if (v === BLACK) {
+          grad.addColorStop(0, '#5a5a5a');
+          grad.addColorStop(1, '#050505');
+        } else {
+          grad.addColorStop(0, '#ffffff');
+          grad.addColorStop(1, '#cfcfcf');
+        }
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+
+    turnText.textContent = turn === BLACK ? 'ดำ' : 'ขาว';
+    turnDot.style.background = turn === BLACK ? '#050505' : '#f2f2f2';
+    turnDot.style.boxShadow = turn === BLACK ? '0 0 0 3px rgba(5,5,5,0.25)' : '0 0 0 3px rgba(255,255,255,0.25)';
+    blackCapturesEl.textContent = captures[1];
+    whiteCapturesEl.textContent = captures[2];
+  }
+
+  canvas.addEventListener('click', (e) => {
+    if (gameOver) return;
+    if (opponentSelect.value === 'ai' && turn === WHITE) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const px = (e.clientX - rect.left) * scaleX;
+    const py = (e.clientY - rect.top) * scaleY;
+    const [x, y] = pixelToBoard(px, py);
+    if (!inBounds(x, y)) return;
+    const [bx, by] = boardToPixel(x, y);
+    if (Math.hypot(px - bx, py - by) > cell * 0.5) return;
+    placeStone(x, y);
+  });
+
+  newGameBtn.addEventListener('click', setupBoard);
+  boardSizeSelect.addEventListener('change', setupBoard);
+  opponentSelect.addEventListener('change', setupBoard);
+  passBtn.addEventListener('click', passTurn);
+  undoBtn.addEventListener('click', undo);
+
+  setupBoard();
+})();
+</script>
+</body>
+</html>
