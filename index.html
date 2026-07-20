@@ -283,9 +283,22 @@
         <div class="field">
           <label for="opponent">คู่ต่อสู้</label>
           <select id="opponent">
-            <option value="human">คน vs คน</option>
+            <option value="human">คน vs คน (เครื่องเดียว)</option>
             <option value="ai">คน vs คอมพิวเตอร์</option>
+            <option value="online">เล่นออนไลน์ (2 เครื่อง)</option>
           </select>
+        </div>
+        <div id="onlinePanel" class="field" style="display:none; gap:10px; margin-top:4px;">
+          <div id="onlineStatus" style="font-size:13px; color:var(--paper-dim);">เลือกสร้างห้อง หรือเข้าร่วมด้วยรหัส</div>
+          <button id="createRoomBtn" type="button">สร้างห้อง</button>
+          <div id="roomCodeBox" style="display:none; align-items:center; gap:8px;">
+            <span id="roomCodeValue" style="font-family:ui-monospace,'SFMono-Regular',Menlo,monospace; font-size:18px; letter-spacing:0.06em; color:var(--paper);"></span>
+            <button id="copyRoomBtn" type="button">คัดลอกรหัส</button>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <input id="joinCodeInput" type="text" placeholder="ใส่รหัสห้องเพื่อน" style="flex:1; min-width:0; background:var(--ink-3); color:var(--paper); border:1px solid #4a3c26; border-radius:6px; padding:8px 10px; font-family:inherit; font-size:14px;">
+            <button id="joinRoomBtn" type="button">เข้าร่วม</button>
+          </div>
         </div>
       </div>
 
@@ -322,6 +335,7 @@
 
 <footer class="credit">หมากล้อม (Go) — จับกินหมาก, กฎโค และนับพื้นที่ครบตามกติกา</footer>
 
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 (function () {
   const canvas = document.getElementById('board');
@@ -336,6 +350,14 @@
   const blackCapturesEl = document.getElementById('blackCaptures');
   const whiteCapturesEl = document.getElementById('whiteCaptures');
   const statusEl = document.getElementById('status');
+  const onlinePanel = document.getElementById('onlinePanel');
+  const onlineStatusEl = document.getElementById('onlineStatus');
+  const createRoomBtn = document.getElementById('createRoomBtn');
+  const joinRoomBtn = document.getElementById('joinRoomBtn');
+  const joinCodeInput = document.getElementById('joinCodeInput');
+  const roomCodeBox = document.getElementById('roomCodeBox');
+  const roomCodeValueEl = document.getElementById('roomCodeValue');
+  const copyRoomBtn = document.getElementById('copyRoomBtn');
 
   const EMPTY = 0, BLACK = 1, WHITE = 2;
   const LINE_COLOR = '#4a3218';
@@ -351,6 +373,12 @@
   let gameOver = false;
   let history = [];
   let koBoardString = null;
+
+  let peer = null;
+  let conn = null;
+  let isHost = false;
+  let myColor = null;
+  let onlineConnected = false;
 
   function idx(x, y) { return y * N + x; }
   function newBoard(n) { return new Array(n * n).fill(EMPTY); }
@@ -448,6 +476,7 @@
     statusEl.textContent = '';
     draw();
     maybeAiMove();
+    broadcastStateIfHost();
     return true;
   }
 
@@ -462,6 +491,7 @@
       draw();
       maybeAiMove();
     }
+    broadcastStateIfHost();
   }
 
   function undo() {
@@ -480,6 +510,7 @@
     koBoardString = null;
     statusEl.textContent = '';
     draw();
+    broadcastStateIfHost();
   }
 
   function scoreArea(b) {
@@ -635,6 +666,7 @@
     statusEl.textContent = '';
     resizeCanvas();
     draw();
+    broadcastStateIfHost();
   }
 
   function resizeCanvas() {
@@ -711,8 +743,6 @@
   }
 
   canvas.addEventListener('click', (e) => {
-    if (gameOver) return;
-    if (opponentSelect.value === 'ai' && turn === WHITE) return;
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
@@ -722,14 +752,164 @@
     if (!inBounds(x, y)) return;
     const [bx, by] = boardToPixel(x, y);
     if (Math.hypot(px - bx, py - by) > cell * 0.5) return;
+
+    if (opponentSelect.value === 'online') {
+      if (gameOver || !onlineConnected || turn !== myColor) return;
+      if (isHost) {
+        placeStone(x, y);
+      } else if (conn) {
+        conn.send({ type: 'requestMove', x, y });
+      }
+      return;
+    }
+
+    if (gameOver) return;
+    if (opponentSelect.value === 'ai' && turn === WHITE) return;
     placeStone(x, y);
+  });
+
+  // ---- Online multiplayer (WebRTC via PeerJS's free public broker) ----
+
+  function updateOnlineStatus(text) {
+    onlineStatusEl.textContent = text;
+  }
+
+  function broadcastStateIfHost() {
+    if (isHost && onlineConnected && conn) {
+      conn.send({
+        type: 'state',
+        board, turn, captures, passCount, gameOver, N,
+        status: statusEl.textContent,
+      });
+    }
+  }
+
+  function applyRemoteState(data) {
+    N = data.N;
+    board = data.board;
+    turn = data.turn;
+    captures = data.captures;
+    passCount = data.passCount;
+    gameOver = data.gameOver;
+    boardSizeSelect.value = String(data.N);
+    resizeCanvas();
+    draw();
+    statusEl.textContent = data.status || '';
+  }
+
+  function toggleOnlineControls() {
+    const guestLocked = opponentSelect.value === 'online' && !isHost;
+    boardSizeSelect.disabled = guestLocked;
+    newGameBtn.disabled = guestLocked;
+    undoBtn.disabled = guestLocked;
+  }
+
+  function generateRoomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let s = '';
+    for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    return 'go-' + s;
+  }
+
+  function setupConnectionHandlers() {
+    conn.on('open', () => {
+      onlineConnected = true;
+      updateOnlineStatus(isHost ? 'เชื่อมต่อสำเร็จ — คุณคือฝ่ายดำ' : 'เชื่อมต่อสำเร็จ — คุณคือฝ่ายขาว');
+      toggleOnlineControls();
+      if (isHost) broadcastStateIfHost();
+    });
+    conn.on('data', (data) => {
+      if (isHost) {
+        if (data.type === 'requestMove' && !gameOver && turn === WHITE) {
+          placeStone(data.x, data.y);
+        } else if (data.type === 'requestPass' && !gameOver && turn === WHITE) {
+          passTurn();
+        }
+      } else if (data.type === 'state') {
+        applyRemoteState(data);
+      }
+    });
+    conn.on('close', () => {
+      onlineConnected = false;
+      updateOnlineStatus('การเชื่อมต่อถูกตัด');
+    });
+  }
+
+  function createRoom() {
+    isHost = true;
+    myColor = BLACK;
+    toggleOnlineControls();
+    const code = generateRoomCode();
+    updateOnlineStatus('กำลังสร้างห้อง…');
+    peer = new Peer(code);
+    peer.on('open', (id) => {
+      roomCodeValueEl.textContent = id;
+      roomCodeBox.style.display = 'flex';
+      updateOnlineStatus('รอเพื่อนเข้าร่วม — แชร์รหัสห้องด้านบนให้เพื่อน');
+    });
+    peer.on('connection', (c) => {
+      conn = c;
+      setupConnectionHandlers();
+    });
+    peer.on('error', (err) => {
+      updateOnlineStatus('เกิดข้อผิดพลาด (' + err.type + ') ลองสร้างห้องใหม่อีกครั้ง');
+    });
+  }
+
+  function joinRoom() {
+    const code = joinCodeInput.value.trim();
+    if (!code) return;
+    isHost = false;
+    myColor = WHITE;
+    toggleOnlineControls();
+    updateOnlineStatus('กำลังเชื่อมต่อ…');
+    peer = new Peer();
+    peer.on('open', () => {
+      conn = peer.connect(code, { reliable: true });
+      setupConnectionHandlers();
+    });
+    peer.on('error', (err) => {
+      updateOnlineStatus('เชื่อมต่อไม่สำเร็จ (' + err.type + ') ตรวจสอบรหัสห้องอีกครั้ง');
+    });
+  }
+
+  function teardownOnline() {
+    if (conn) { try { conn.close(); } catch (e) {} }
+    if (peer) { try { peer.destroy(); } catch (e) {} }
+    conn = null;
+    peer = null;
+    isHost = false;
+    myColor = null;
+    onlineConnected = false;
+    roomCodeBox.style.display = 'none';
+    joinCodeInput.value = '';
+    updateOnlineStatus('เลือกสร้างห้อง หรือเข้าร่วมด้วยรหัส');
+    toggleOnlineControls();
+  }
+
+  createRoomBtn.addEventListener('click', createRoom);
+  joinRoomBtn.addEventListener('click', joinRoom);
+  copyRoomBtn.addEventListener('click', () => {
+    navigator.clipboard?.writeText(roomCodeValueEl.textContent || '');
+  });
+
+  passBtn.addEventListener('click', () => {
+    if (opponentSelect.value === 'online' && onlineConnected && !isHost) {
+      if (turn === myColor) conn.send({ type: 'requestPass' });
+      return;
+    }
+    passTurn();
   });
 
   newGameBtn.addEventListener('click', setupBoard);
   boardSizeSelect.addEventListener('change', setupBoard);
-  opponentSelect.addEventListener('change', setupBoard);
-  passBtn.addEventListener('click', passTurn);
   undoBtn.addEventListener('click', undo);
+
+  opponentSelect.addEventListener('change', () => {
+    teardownOnline();
+    onlinePanel.style.display = opponentSelect.value === 'online' ? 'flex' : 'none';
+    setupBoard();
+  });
 
   setupBoard();
 })();
